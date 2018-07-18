@@ -1,0 +1,14 @@
+print("static const int64_t ea[] __attribute__ ((aligned (64))) = {") >> "ea_p.data";
+for i from 0 to 111111111111_2 by 1_2 do {
+a = i*2^(-13);
+ea = double(exp(a)) * 2^53;
+write(ea," , \n") >> "ea_p.data";
+};
+
+for i from 1000000000000_2 to 1111111111111_2 by 1_2 do {
+a = 2^(-13)*i-1;
+ea = double(exp(a)) * 2^53;
+write(ea," , \n") >> "ea_p.data";
+};
+
+print("};") >> "ea_p.data";
