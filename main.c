@@ -5,6 +5,8 @@ using namespace std;
 #include <float.h>
 #include <math.h>
 
+extern double expDouble(double x);
+
 typedef union {
 	double d;
 	int64_t i64;
@@ -29,6 +31,7 @@ int64_t toFixedPoint(double x) {
 	int64_t result = (xbits << 11) | ((int64_t)1 << 63);
 	result = (uint64_t)result >> (10-e);
 	result = (result + sign) ^ sign;
+
 	return result;
 }
 
@@ -48,18 +51,24 @@ int32_t roundToNearest32(int32_t x) {
 }
 
 int main() {
-	double x = 799;
+	cout << setprecision(99);
+	double x;
+	cin >> x;
 	int64_t xf = toFixedPoint(x);
-	/*
-	int32_t e = ((int64_t)(xf >> 32) * 3025550) >> 21;
-	cout << bitset<32>(xf >> 32) << endl;
-	cout << bitset<32>(3025550) << endl;
-	e = roundToNearest32(e);
-	cout << e << endl;
-	*/
+	const int64_t log2 = 6243314768165359;
 	int16_t e = ((int16_t)(xf >> 48) * (int32_t)47274) >> 17;
-	cout << bitset<32>(e) << endl;
 	e = roundToNearest16(e);
-	cout << e << endl;
+	int64_t y = xf - e * log2;
+	int16_t a = (y >> 40) & 0b01111111111111;
+	int16_t sign_a = a >> 12;
+	int64_t z = (uint64_t)(y << 24) >> 24;
+	cout << "0000000000011111111111111111111111111111111111111111111111111111" << endl;
+
+	binary64 b1,b2;
+	b1.d = expDouble(x);
+	b2.d = exp(x);
+	cout << "expd : " << bitset<64>(b1.i64) << endl;
+	cout << "exp  : " << bitset<64>(b2.i64) << endl;
+	cout << "diff : " << b1.i64 - b2.i64 << endl;
 	return 0;
 }
