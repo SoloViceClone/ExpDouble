@@ -7,11 +7,42 @@ using namespace std;
 
 extern double expDouble(double x);
 
+extern double dummy(double x);
+
+#define RANDTESTSIZE 0x100000
+
+float randtest[RANDTESTSIZE];
+
 typedef union {
 	double d;
 	int64_t i64;
 	uint64_t ui64;
 } binary64;
+
+uint64_t get_cycle_counter() {
+#ifdef __k1__
+    __builtin_k1_barrier();
+    unsigned k = __k1_counter_num(0);
+    __builtin_k1_barrier();
+    return k;
+
+#else
+
+		uint64_t time;
+		__asm__ __volatile__(															 \
+          "xorl %%eax,%%eax\n\t"                       \
+          "cpuid\n\t"                                  \
+          "rdtsc\n\t"                                  \
+          "movl %%eax,(%0)\n\t"                        \
+          "movl %%edx,4(%0)\n\t"                       \
+          "xorl %%eax,%%eax\n\t"                       \
+          "cpuid\n\t"                                  \
+          : /* nothing */                              \
+          : "S"((&time))                                \
+          : "eax", "ebx", "ecx", "edx", "memory");
+		return time;
+#endif
+}
 
 void test1(double x) {
 	binary64 b64;
@@ -24,51 +55,84 @@ void test2(int64_t x) {
 	cout << d << endl;
 }
 
-int64_t toFixedPoint(double x) {
-	int64_t xbits  = ((union{double d; int64_t t; }){x}).t;
-	int64_t sign = xbits >> 63;
-	int64_t e = ((((uint64_t)xbits) >> 52) & 0b011111111111) - 1023;
-	int64_t result = (xbits << 11) | ((int64_t)1 << 63);
-	result = (uint64_t)result >> (10-e);
-	result = (result + sign) ^ sign;
-
-	return result;
+int64_t singleTest(double x) {
+	binary64 b1,b2;
+	//cout << x << endl;
+	b1.d = expDouble(x);
+	b2.d = exp(x);
+	return b1.ui64>b2.ui64?(b1.ui64-b2.ui64):(b2.ui64-b1.ui64);
 }
 
-int16_t roundToNearest(int64_t x) {
-	x = x + ((int64_t)1 << 52);
-	return (int16_t)(x >> 53);
+int64_t randTest() {
+	srand (time (0));
+	int64_t sum = 0;
+	for (int64_t i = 0; i < 100000; i++) {
+		double x = ((double)((unsigned)rand() | 1) / (double)RAND_MAX)* 100 - 50;
+		int64_t diff = singleTest(x);
+		sum += diff;
+	}
+	return sum;
 }
 
-int16_t roundToNearest16(int16_t x) {
-	x = x + (int16_t)0b0100;
-	return (x >> 3);
+void performanceTest() {
+	srand (time (0));
+
+	unsigned long long i;
+
+	for (i=0; i<RANDTESTSIZE; i++) {
+		float x = ((double)((unsigned)rand() | 1) / (double)RAND_MAX) ;
+		//		printf("%llu   %1.34e\n", i,x);
+		randtest[i]=x;
+	}
+
+	uint64_t t0,t1,t_empty;
+	t0 = get_cycle_counter();
+	for (i = 0; i < RANDTESTSIZE; i++) {
+		double x = randtest[i];
+		double y = dummy(x);
+	}
+	t1 = get_cycle_counter();
+	t_empty = t1 - t0;
+	cout << "Empty loop 1 cycles : " << (double)(t_empty)/RANDTESTSIZE << endl;
+
+
+	t0 = get_cycle_counter();
+	for (i = 0; i < RANDTESTSIZE; i++) {
+		double x = randtest[i];
+		double y = exp(x);
+	}
+	t1 = get_cycle_counter();
+	cout << "Libc expf cycles : " << (double)(t1-t0-t_empty)/RANDTESTSIZE << endl;
+
+	t0 = get_cycle_counter();
+	for (i = 0; i < RANDTESTSIZE; i++) {
+		double x = randtest[i];
+		double y = expDouble(x);
+	}
+	t1 = get_cycle_counter();
+	cout << "ExpDouble cycles : " << (double)(t1-t0-t_empty)/RANDTESTSIZE << endl;
 }
 
-int32_t roundToNearest32(int32_t x) {
-	x = x + (int32_t)0b0100000000000000000000;
-	return (x >> 21);
+void test3() {
+	double x;
+
+	cin >> x;
+	binary64 b1,b2;
+	b1.d = expDouble(x);
+	b2.d = exp(x);
+	cout << b1.d << endl;
+	cout << "     : " << "seeeeeeeeeeemmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm" << endl;
+	cout << "expd : " << bitset<64>(b1.i64) << endl;
+	cout << "exp  : " << bitset<64>(b2.i64) << endl;
+	cout << "diff : " << b1.i64 - b2.i64 << endl;
 }
 
 int main() {
 	cout << setprecision(99);
-	double x;
-	cin >> x;
-	int64_t xf = toFixedPoint(x);
-	const int64_t log2 = 6243314768165359;
-	int16_t e = ((int16_t)(xf >> 48) * (int32_t)47274) >> 17;
-	e = roundToNearest16(e);
-	int64_t y = xf - e * log2;
-	int16_t a = (y >> 40) & 0b01111111111111;
-	int16_t sign_a = a >> 12;
-	int64_t z = (uint64_t)(y << 24) >> 24;
-	cout << "0000000000011111111111111111111111111111111111111111111111111111" << endl;
-
-	binary64 b1,b2;
-	b1.d = expDouble(x);
-	b2.d = exp(x);
-	cout << "expd : " << bitset<64>(b1.i64) << endl;
-	cout << "exp  : " << bitset<64>(b2.i64) << endl;
-	cout << "diff : " << b1.i64 - b2.i64 << endl;
+	//test3();
+	
+	performanceTest();
+	cout << randTest() << endl;
+	
 	return 0;
 }
